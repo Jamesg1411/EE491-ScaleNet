@@ -8,6 +8,8 @@
  *
 **/
 #include <Arduino.h>
+#undef max
+#undef min
 #include "HX711.h"
 
 // TEENSYDUINO has a port of Dean Camera's ATOMIC_BLOCK macros for AVR to ARM Cortex M3.

@@ -4,13 +4,15 @@
 #include <SPI.h>                // Do not include SPI for CC3200 LaunchPad
 #endif
 #include <WiFi.h>
+#include <Arduino.h>
 #include "HX711.h" 
+#include "mainOnWifi.h"
 
 // Define structures and classes
 HX711 scale;
 #define calibration_factor -10390//-9950
-char wifi_name[] = "energia";
-char wifi_password[] = "launchpad";
+char wifi_name[] = "ScaleNet";
+char wifi_password[] = "Launchpad";
 WiFiServer myServer(80);
 uint8_t oldCountClients = 0;
 uint8_t countClients = 0;
@@ -20,6 +22,19 @@ static float FLbias = 0;
 static float FRbias = 0;
 static float BLbias = 0;
 static float BRbias = 0;
+static float FrontLeftData = 0;
+static float FrontRightData = 0;
+static float BackLeftData = 0;
+static float BackRightData = 0;
+static float FrontDiff = 0;
+static float BackDiff = 0;
+static float LeftDiff = 0;
+static float RightDiff = 0;
+static float LRDiff;
+static float FBDiff;
+static float total;
+
+
 
 //added functions
 void getSlaveData(float *FrontRightData, float *BackLeftData, float *BackRightData)
@@ -46,6 +61,7 @@ float tempCorrect(float dataAverage, float temp)
     float correctedWeight = dataAverage - (((temp - configTemp)/10)*2);
     return correctedWeight;
 }
+
 
 
 // Add setup code
@@ -91,7 +107,6 @@ void setup()
     Serial.println();
 
     scale.begin(10,9);
-    //scale.begin(14,7);
     scale.set_scale(calibration_factor);
     scale.tare();
     delay(30);
@@ -103,14 +118,6 @@ void loop()
 {
     //local vars
     int iter = 0;
-    float FrontLeftData = 0;
-    float FrontRightData = 0;
-    float BackLeftData = 0;
-    float BackRightData = 0;
-//    float FrontDiff = 0;
-//    float BackDiff = 0;
-//    float LeftDiff = 0;
-//    float RightDiff = 0;
     //hardcoding the array values to provide sample data for tesing without strain gauges
     float data[arraySize]; // = {160.0, 161.1, 162.2, 163.3, 164.4, 165.5, 166.6, 167.7, 168.8, 169.9};
     float currentValue = 0;
@@ -125,16 +132,7 @@ void loop()
         {  // Client connect
             //            digitalWrite(RED_LED, !digitalRead(RED_LED));
             //Serial.println("Client connected to AP");
-/*            for (uint8_t k = 0; k < countClients; k++)
-            {
-                Serial.print("Client #");
-                Serial.print(k);
-                Serial.print(" at IP address = ");
-                Serial.print(WiFi.deviceIpAddress(k));
-                Serial.print(", MAC = ");
-                Serial.println(WiFi.deviceMacAddress(k));
-                Serial.println("CC3200 in AP mode only accepts one client.");
-            }*/
+
         }
         else
         {  // Client disconnect
@@ -172,14 +170,29 @@ void loop()
                         myClient.println();
                         
                         // the content of the HTTP response follows the header:
-                        myClient.println("<html><head><title>Energia CC3200 WiFi Web-Server in AP Mode</title></head><body align=center>");
-                        myClient.println("<h1 align=center><font color=\"red\">LaunchPad CC3200 WiFi Web-Server in AP Mode</font></h1>");
-                        myClient.print("Red LED <button onclick=\"location.href='/RH'\">HIGH</button>");
-                        myClient.println(" <button onclick=\"location.href='/RL'\">LOW</button><br>");
-                        myClient.print("Green LED <button onclick=\"location.href='/GH'\">HIGH</button>");
-                        myClient.println(" <button onclick=\"location.href='/GL'\">LOW</button><br>");
-                        myClient.print("Yellow LED <button onclick=\"location.href='/YH'\">HIGH</button>");
-                        myClient.println(" <button onclick=\"location.href='/YL'\">LOW</button><br>");
+                        myClient.println(HTMLchunk1);
+                        myClient.println(BackLeftData);
+                        myClient.println(HTMLchunk2);
+                        myClient.println(BackDiff);
+                        myClient.println(HTMLchunk3);
+                        myClient.println(BackRightData);
+                        myClient.println(HTMLchunk4);
+                        myClient.println(LeftDiff);
+                        myClient.println(HTMLchunk5);
+                        myClient.println(RightDiff);
+                        myClient.println(HTMLchunk6);
+                        myClient.println(FrontLeftData);
+                        myClient.println(HTMLchunk7);
+                        myClient.println(FrontDiff);
+                        myClient.println(HTMLchunk8);
+                        myClient.println(FrontRightData);
+                        myClient.println(HTMLchunk9);
+                        myClient.println(LRDiff);
+                        myClient.println(HTMLchunk10);
+                        myClient.println(total);
+                        myClient.println(HTMLchunk11);
+                        myClient.println(FBDiff);
+                        myClient.println(HTMLchunk12);
                         
                         // The HTTP response ends with another blank line:
                         myClient.println();
@@ -199,7 +212,7 @@ void loop()
                 
                 String text = buffer;
                 // Check to see if the client request was "GET /H" or "GET /L":
-                if (text.endsWith("GET /RH") || text.endsWith("GET /RL")) //if request
+                if (text.endsWith("GET /ZO") || text.endsWith("GET /UP")) //if request
                 {
                             //added code block 1
                         digitalWrite(18, HIGH);
@@ -212,26 +225,40 @@ void loop()
                         float dataAverage = getAverage(data);
                         FrontLeftData = tempCorrect(dataAverage, temp);
                         getSlaveData(&FrontRightData, &BackLeftData, &BackRightData);
-                        if(text.endsWith("GET /RL")) //configuration TODO add configuration pin
+                        if(text.endsWith("GET /ZO")) //configuration TODO add configuration pin
                         {
                             FLbias = FrontLeftData;
                             FRbias = FrontRightData;
                             BLbias = BackLeftData;
                             BRbias = BackRightData;
+                        
                         }
+                        Serial.print("TestData:  ");
+                        Serial.print(FLbias);
+                        FrontLeftData -= FLbias;
+                        FrontRightData -= FRbias;
+                        BackLeftData -= BLbias;
+                        BackRightData -= BRbias;
                         Serial.print("FrontLeft:  ");
-                        Serial.println(FrontLeftData - FLbias);
+                        Serial.println(FrontLeftData);
                         Serial.print("FrontRight: ");
-                        Serial.println(FrontRightData - FRbias);
+                        Serial.println(FrontRightData);
                         Serial.print("BackLeft:   ");
-                        Serial.println(BackLeftData - BLbias);
+                        Serial.println(BackLeftData);
                         Serial.print("BackRight:  ");
-                        Serial.println(BackRightData - BRbias);   
-                         //do differentials calculation here                
+                        Serial.println(BackRightData);  
+                        //tire diffs
+                        FrontDiff = FrontLeftData - FrontRightData;
+                        LeftDiff = FrontLeftData - BackLeftData;
+                        RightDiff = FrontRightData - BackRightData;
+                        BackDiff = BackLeftData - BackRightData;
+                        LRDiff = FrontDiff + BackDiff;
+                        FBDiff = LeftDiff + RightDiff;
+                        total = FrontLeftData + FrontRightData + BackLeftData + BackRightData;
                 }
+                                        // the content of the HTTP response follows the header:
             }
         }
-        
         // close the connection:
         myClient.stop();
     }
